@@ -1,0 +1,112 @@
+---
+title: "Unsupervised Atmospheric Analysis"
+author: "Angela Herrera"
+date: "`r Sys.Date()`"
+output:
+  html_document:
+    toc: true
+    toc_depth: 2
+    number_sections: true
+    theme: cosmo
+    code_folding: hide
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE, fig.width = 8, fig.height = 5)
+library(tidyverse)
+library(mice)
+library(VIM)
+library(factoextra)
+library(cluster)
+library(mclust)
+library(FactoMineR)
+library(ggplot2)
+library(corrplot)
+```
+
+# Introduction
+
+This report presents a reproducible unsupervised analysis of atmospheric measurements. The analysis covers exploratory data analysis, missing data handling, principal component analysis, and clustering. The report is organized to be runnable end to end and to be easily adapted for other atmospheric or environmental datasets.
+
+# Data loading and exploratory analysis
+
+```{r load-data}
+data_path <- "data/MaunaLoa_miss.csv"  # Update path if your file has a different name
+if (!file.exists(data_path)) {
+  message("Place your CSV file at: ", data_path)
+} else {
+  mauna_raw <- read.csv(data_path, stringsAsFactors = FALSE)
+  # Attempt to parse a date column if present
+  if ("Date" %in% names(mauna_raw)) {
+    mauna_raw$Date <- as.Date(mauna_raw$Date)
+  }
+  glimpse(mauna_raw)
+  summary(mauna_raw)
+}
+```
+
+## Missing data pattern
+
+```{r missing-pattern, fig.width=7, fig.height=4}
+if (exists("mauna_raw")) {
+  library(VIM)
+  aggr(mauna_raw, numbers = TRUE, sortVars = TRUE, labels = names(mauna_raw), cex.axis = 0.8)
+}
+```
+
+# Cleaning and imputation
+
+```{r impute, fig.width=6, fig.height=4}
+if (exists("mauna_raw")) {
+  # Basic outlier check example for a variable named Methane
+  if ("Methane" %in% names(mauna_raw)) {
+    Q1 <- quantile(mauna_raw$Methane, .25, na.rm = TRUE)
+    Q3 <- quantile(mauna_raw$Methane, .75, na.rm = TRUE)
+    IQRv <- Q3 - Q1
+    lower <- Q1 - 1.5 * IQRv
+    upper <- Q3 + 1.5 * IQRv
+    mauna_clean <- mauna_raw %>% filter(Methane >= lower & Methane <= upper | is.na(Methane))
+  } else {
+    mauna_clean <- mauna_raw
+  }
+
+  set.seed(123)
+  imp <- mice(mauna_clean, m = 5, method = "pmm", seed = 123)
+  complete1 <- complete(imp, 1)
+  saveRDS(complete1, "data/cleaned_imputed.rds")
+  message("Saved cleaned and imputed data to data/cleaned_imputed.rds")
+}
+```
+
+# Principal Component Analysis
+
+```{r pca-analysis}
+if (file.exists("data/cleaned_imputed.rds")) {
+  complete1 <- readRDS("data/cleaned_imputed.rds")
+  numeric_df <- complete1 %>% select_if(is.numeric)
+  pca_res <- prcomp(numeric_df, scale. = TRUE)
+  print(summary(pca_res))
+  fviz_eig(pca_res, addlabels = TRUE)
+}
+```
+
+# Clustering
+
+```{r clustering-steps}
+if (exists("pca_res")) {
+  pca_scores <- as.data.frame(pca_res$x[, 1:2])
+  set.seed(123)
+  kmeans_res <- kmeans(pca_scores, centers = 5, nstart = 25)
+  fviz_cluster(kmeans_res, data = pca_scores, ellipse.type = "convex")
+}
+```
+
+# Discussion and conclusions
+
+Add interpretation and next steps here. Discuss variance explained by principal components, cluster stability, and domain-specific interpretation of cluster groups.
+
+# Session info
+
+```{r session-info}
+sessionInfo()
+```

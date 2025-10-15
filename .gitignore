@@ -1,0 +1,10 @@
+.Rhistory
+.RData
+.Rproj.user/
+.Ruserdata
+.vscode/
+data/*.csv
+outputs/
+*.html
+*.pdf
+.DS_Store
